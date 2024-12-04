@@ -1,18 +1,39 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Papa from 'papaparse';
 
 const BomPage = () => {
   const [bomData, setBomData] = useState([]);
   const [pendingJobs, setPendingJobs] = useState([]);
   const [newBomItem, setNewBomItem] = useState({
-    id: '', // Added field for ID
+    id: '', 
     item_id: '',
     component_id: '',
     quantity: '',
-    type: 'Sell', // Default value for type
+    type: 'Sell',
   });
   const [errors, setErrors] = useState([]);
-  const [validationMessage, setValidationMessage] = useState(''); // Added state for validation message
+  const [validationMessage, setValidationMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const apiUrl = 'https://api-assignment.inveesync.in/bom';
+
+  // Fetch BOM Data from API
+  const fetchBomData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(apiUrl);
+      if (!response.ok) {
+        throw new Error('Failed to fetch BOM data');
+      }
+      const data = await response.json();
+      setBomData(data);
+      validateBomData(data); // Validate fetched data
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handle CSV Upload
   const handleCSVUpload = (e) => {
@@ -23,9 +44,9 @@ const BomPage = () => {
         skipEmptyLines: true,
         complete: (result) => {
           const parsedData = result.data;
-          setBomData(parsedData); // Set parsed CSV data to table
-          validateBomData(parsedData); // Validate data after parsing
-          assignNewId(parsedData); // Assign new ID after CSV upload
+          setBomData(parsedData); 
+          validateBomData(parsedData);
+          assignNewId(parsedData); 
         },
       });
     }
@@ -41,16 +62,33 @@ const BomPage = () => {
   const assignNewId = (data) => {
     const lastItem = data[data.length - 1];
     const newId = lastItem ? parseInt(lastItem.id, 10) + 1 : 1;
-    setNewBomItem({ ...newBomItem, id: newId.toString() }); // Automatically assign ID
+    setNewBomItem({ ...newBomItem, id: newId.toString() });
   };
 
-  // Add New BOM Item to Table
-  const handleAddBomItem = () => {
-    const updatedBomData = [...bomData, newBomItem];
-    setBomData(updatedBomData);
-    validateBomData(updatedBomData);
-    assignNewId(updatedBomData); // Reassign ID after item is added
-    setNewBomItem({ id: '', item_id: '', component_id: '', quantity: '', type: 'Sell' });
+  // Add New BOM Item to API
+  const handleAddBomItem = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBomItem),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to add BOM item');
+      }
+
+      const data = await response.json();
+      setBomData((prevData) => [...prevData, data]);
+      validateBomData([...bomData, data]);
+      assignNewId([...bomData, data]); 
+      setNewBomItem({ id: '', item_id: '', component_id: '', quantity: '', type: 'Sell' });
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Validate BOM Data
@@ -59,7 +97,6 @@ const BomPage = () => {
     const pending = [];
 
     data.forEach((item, index) => {
-      // Validate Item ID + Component ID uniqueness
       const duplicate = data.some(
         (existingItem, idx) =>
           existingItem.item_id === item.item_id &&
@@ -70,22 +107,18 @@ const BomPage = () => {
         newErrors.push(`Row ${index + 1}: Duplicate item_id + component_id combination.`);
       }
 
-      // Validate Quantity (should be between 1 and 100)
       if (item.quantity < 1 || item.quantity > 100) {
         newErrors.push(`Row ${index + 1}: Quantity must be between 1 and 100.`);
       }
 
-      // Validate Sell Item with no Item ID (Pending Job)
       if (item.type === 'Sell' && !item.item_id) {
         pending.push(item);
       }
 
-      // Validate Purchase Item with no Component ID (Pending Job)
       if (item.type === 'Purchase' && !item.component_id) {
         pending.push(item);
       }
 
-      // Component Item should have both Item ID and Component ID
       if (item.type === 'Component' && (!item.item_id || !item.component_id)) {
         pending.push(item);
       }
@@ -94,7 +127,6 @@ const BomPage = () => {
     setErrors(newErrors);
     setPendingJobs(pending);
 
-    // Set the validation success message if no errors
     if (newErrors.length === 0) {
       setValidationMessage('Validation Successful');
     } else {
@@ -104,7 +136,7 @@ const BomPage = () => {
 
   // Validate BOM Data on Button Click
   const handleValidateData = () => {
-    validateBomData(bomData); // Trigger validation for current BOM data
+    validateBomData(bomData); 
   };
 
   // Download Template CSV
@@ -123,20 +155,40 @@ const BomPage = () => {
   const handleEditBomItem = (index) => {
     const item = bomData[index];
     setNewBomItem({
-      id: item.id, // Populate ID when editing
+      id: item.id,
       item_id: item.item_id,
       component_id: item.component_id,
       quantity: item.quantity,
-      type: item.type || 'Sell', // Default to 'Sell' if no type
+      type: item.type || 'Sell',
     });
   };
 
   // Delete BOM Item (by Index)
-  const handleDeleteBomItem = (index) => {
-    const updatedBomData = bomData.filter((_, idx) => idx !== index);
-    setBomData(updatedBomData);
-    validateBomData(updatedBomData); // Re-validate BOM data after deletion
+  const handleDeleteBomItem = async (index) => {
+    setLoading(true);
+    try {
+      const itemToDelete = bomData[index];
+      const response = await fetch(`${apiUrl}/${itemToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete BOM item');
+      }
+
+      const updatedBomData = bomData.filter((_, idx) => idx !== index);
+      setBomData(updatedBomData);
+      validateBomData(updatedBomData);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
   };
+
+  useEffect(() => {
+    fetchBomData(); // Fetch BOM data when the component mounts
+  }, []);
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#000', color: '#fff' }}>
@@ -204,8 +256,8 @@ const BomPage = () => {
           <option value="Component">Component</option>
         </select>
 
-        <button onClick={handleAddBomItem} style={buttonStyle}>
-          Save Item
+        <button onClick={handleAddBomItem} style={buttonStyle} disabled={loading}>
+          {loading ? 'Saving...' : 'Save Item'}
         </button>
       </div>
 
@@ -253,8 +305,8 @@ const BomPage = () => {
             <th>Item ID</th>
             <th>Component ID</th>
             <th>Quantity</th>
-            <th>Type</th> {/* Added Type Column */}
-            <th>Actions</th> {/* Added Actions column for edit and delete */}
+            <th>Type</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
@@ -264,16 +316,16 @@ const BomPage = () => {
               <td>{item.item_id}</td>
               <td>{item.component_id}</td>
               <td>{item.quantity}</td>
-              <td>{item.type}</td> {/* Display Type */}
+              <td>{item.type}</td>
               <td>
                 <button
-                  onClick={() => handleEditBomItem(index)} // Edit the BOM item
+                  onClick={() => handleEditBomItem(index)}
                   style={editButtonStyle}
                 >
                   Edit
                 </button>
                 <button
-                  onClick={() => handleDeleteBomItem(index)} // Delete the BOM item
+                  onClick={() => handleDeleteBomItem(index)}
                   style={deleteButtonStyle}
                 >
                   Delete

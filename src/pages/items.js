@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import axios from 'axios';
 import Papa from 'papaparse';
 
 const ItemsPage = () => {
@@ -15,6 +16,70 @@ const ItemsPage = () => {
   });
   const [editingIndex, setEditingIndex] = useState(null); // Track the item being edited
 
+  const apiUrl = 'https://api-assignment.inveesync.in/items';
+
+  // Define styles
+  const buttonStyle = {
+    backgroundColor: '#4CAF50', // Green background
+    color: 'white',
+    padding: '10px 20px',
+    margin: '5px',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+  };
+
+  const inputStyle = {
+    padding: '8px',
+    margin: '5px',
+    borderRadius: '4px',
+    border: '1px solid #ccc',
+    width: '200px',
+    backgroundColor: '#000',
+  };
+
+  const dropdownStyle = {
+    padding: '8px',
+    margin: '5px',
+    borderRadius: '4px',
+    border: '1px solid #ccc',
+    width: '210px',
+    backgroundColor: '#000',
+  };
+
+  const tableStyle = {
+    width: '100%',
+    borderCollapse: 'collapse',
+  };
+
+  const editButtonStyle = {
+    backgroundColor: '#FFA500', // Orange background for Edit
+    color: 'white',
+    padding: '5px 10px',
+    borderRadius: '4px',
+    border: 'none',
+    cursor: 'pointer',
+  };
+
+  const deleteButtonStyle = {
+    backgroundColor: '#f44336', // Red background for Delete
+    color: 'white',
+    padding: '5px 10px',
+    borderRadius: '4px',
+    border: 'none',
+    cursor: 'pointer',
+  };
+
+  // Fetch items from the remote API when the component mounts
+  useEffect(() => {
+    axios
+      .get(apiUrl)
+      .then((response) => {
+        setItems(response.data); // Set the items fetched from API
+      })
+      .catch((error) => console.error('Error fetching items:', error));
+  }, []);
+
   // Handle CSV Upload
   const handleCSVUpload = (e) => {
     const file = e.target.files[0];
@@ -23,7 +88,16 @@ const ItemsPage = () => {
         header: true,
         skipEmptyLines: true,
         complete: (result) => {
-          setItems(result.data); // Set parsed CSV data to table
+          const parsedItems = result.data;
+          // Save parsed items to API
+          parsedItems.forEach((item) => {
+            axios
+              .post(apiUrl, item)
+              .then((response) => {
+                setItems((prevItems) => [...prevItems, response.data]); // Update state with new item
+              })
+              .catch((error) => console.error('Error adding item to API:', error));
+          });
         },
       });
     }
@@ -44,9 +118,22 @@ const ItemsPage = () => {
       );
       setItems(updatedItems);
       setEditingIndex(null); // Reset editing mode
+
+      // Update item on the server
+      axios
+        .put(`${apiUrl}/${newItem._id}`, newItem)
+        .then((response) => {
+          // Successful update
+        })
+        .catch((error) => console.error('Error updating item:', error));
     } else {
       // Add new item
-      setItems([...items, newItem]);
+      axios
+        .post(apiUrl, newItem)
+        .then((response) => {
+          setItems([...items, response.data]); // Add the new item to state
+        })
+        .catch((error) => console.error('Error adding item:', error));
     }
 
     setNewItem({
@@ -117,44 +204,29 @@ const ItemsPage = () => {
 
   // Handle Delete Item
   const handleDeleteItem = (index) => {
-    const updatedItems = items.filter((_, i) => i !== index);
-    setItems(updatedItems); // Update the state to re-render the table
+    const itemToDelete = items[index];
+    axios
+      .delete(`${apiUrl}/${itemToDelete._id}`)
+      .then(() => {
+        const updatedItems = items.filter((_, i) => i !== index);
+        setItems(updatedItems);
+      })
+      .catch((error) => console.error('Error deleting item:', error));
   };
 
   // Handle Edit Item
   const handleEditItem = (index) => {
-    const itemToEdit = items[index];
-    setNewItem({
-      internal_item_name: itemToEdit.internal_item_name,
-      type: itemToEdit.type,
-      uom: itemToEdit.uom,
-      additional_attributes__scrap_type: itemToEdit.additional_attributes__scrap_type,
-      min_buffer: itemToEdit.min_buffer,
-      max_buffer: itemToEdit.max_buffer,
-    });
-    setEditingIndex(index); // Set the editing index
+    setNewItem(items[index]);
+    setEditingIndex(index);
   };
 
   return (
-    <div style={{ padding: '20px', backgroundColor: '#000', color: '#fff' }}>
-      <h1 style={{ textAlign: 'center' }}>Items Management</h1>
+    <div>
+      {/* CSV Upload */}
+      <input type="file" accept=".csv" onChange={handleCSVUpload} />
 
-      {/* CSV Upload Button */}
-      <input
-        type="file"
-        accept=".csv"
-        onChange={handleCSVUpload}
-        style={{ display: 'block', margin: '10px auto', color: '#fff' }}
-      />
-
-      {/* Download Template Button */}
-      <button onClick={handleDownloadTemplate} style={buttonStyle}>
-        Download Template
-      </button>
-
-      {/* Add or Edit Item Form */}
-      <div style={{ marginTop: '20px' }}>
-        <h3>{editingIndex !== null ? 'Edit Item' : 'Add New Item'}</h3>
+      {/* Item Form */}
+      <div>
         <input
           type="text"
           name="internal_item_name"
@@ -163,11 +235,23 @@ const ItemsPage = () => {
           onChange={handleInputChange}
           style={inputStyle}
         />
-        <select name="type" value={newItem.type} onChange={handleInputChange} style={dropdownStyle}>
+        <select
+          name="type"
+          value={newItem.type}
+          onChange={handleInputChange}
+          style={dropdownStyle}
+        >
           <option value="Sell">Sell</option>
           <option value="Purchase">Purchase</option>
-          <option value="Component">Component</option>
         </select>
+        <input
+          type="text"
+          name="uom"
+          placeholder="Unit of Measurement"
+          value={newItem.uom}
+          onChange={handleInputChange}
+          style={inputStyle}
+        />
         <input
           type="text"
           name="additional_attributes__scrap_type"
@@ -261,62 +345,6 @@ const ItemsPage = () => {
       </table>
     </div>
   );
-};
-
-// Style Definitions
-const buttonStyle = {
-  backgroundColor: '#007bff',
-  color: '#fff',
-  border: 'none',
-  padding: '10px 20px',
-  margin: '10px 0',
-  cursor: 'pointer',
-  display: 'block',
-  textAlign: 'center',
-};
-
-const editButtonStyle = {
-  backgroundColor: 'orange',
-  color: '#fff',
-  padding: '5px 10px',
-  border: 'none',
-  borderRadius: '5px',
-  cursor: 'pointer',
-  marginRight: '10px',
-};
-
-const deleteButtonStyle = {
-  backgroundColor: 'red',
-  color: '#fff',
-  padding: '5px 10px',
-  border: 'none',
-  borderRadius: '5px',
-  cursor: 'pointer',
-};
-
-const inputStyle = {
-  width: '100%',
-  padding: '10px',
-  marginBottom: '10px',
-  backgroundColor: '#000',
-  border: '1px solid #fff',
-  borderRadius: '5px',
-  boxSizing: 'border-box',
-};
-
-const dropdownStyle = {
-  width: '100%',
-  padding: '10px',
-  marginBottom: '10px',
-  backgroundColor: '#000',
-  color: '#fff',
-  border: '1px solid #fff',
-};
-
-const tableStyle = {
-  width: '100%',
-  marginTop: '20px',
-  borderCollapse: 'collapse',
 };
 
 export default ItemsPage;
