@@ -1,36 +1,77 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+# Items Management App
 
-## Getting Started
+This is a simple Items Management App built using React. The application allows users to manage items by performing CRUD operations, including adding, editing, deleting items, and validating data. It also supports CSV upload and download templates.
 
-First, run the development server:
+## Features
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- **CSV Upload**: Upload a CSV file to populate the items table
+- **Add New Item**: Form to add a new item with required fields
+- **Edit Item**: Ability to edit an existing item
+- **Delete Item**: Option to delete an item from the list
+- **Data Validation**: Comprehensive validation system
+- **CSV Template**: Download a sample CSV template for easy data import
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Technologies Used
 
-You can start editing the page by modifying `app/page.js`. The page auto-updates as you edit the file.
+- React
+- PapaParse (for parsing CSV files)
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Installation
 
-## Learn More
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/items-management-app.git
+   cd items-management-app
+   ```
 
-To learn more about Next.js, take a look at the following resources:
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+3. Start the development server:
+   ```bash
+   npm start
+   ```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+4. Open the app in your browser at http://localhost:3000
 
-## Deploy on Vercel
+## Usage
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Adding an Item
+- Fill out the form with:
+  - Internal Item Name
+  - Type (Sell, Purchase, or Component)
+  - Scrap Type (for Sell items)
+  - Min Buffer
+  - Max Buffer
+- Click Save Item to add to the table
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Editing an Item
+- Click Edit button next to the item
+- Update the fields
+- Click Update Item to save changes
+
+### Deleting an Item
+- Click Delete button next to the item
+
+### Data Validation
+- Click Validate button to check:
+  - Duplicate internal item names
+  - Required fields
+  - Buffer quantity constraints
+
+### CSV Operations
+- Upload CSV: Use Choose File button
+- Download Template: Click Download Template button
+
+## Contributing
+1. Fork the repository
+2. Create a new branch (`git checkout -b feature-branch`)
+3. Make your changes
+4. Commit your changes (`git commit -am 'Add new feature'`)
+5. Push to the branch (`git push origin feature-branch`)
+6. Open a pull request
+
+## License
+This project is licensed under the MIT License - see the LICENSE file for details.
