@@ -20,8 +20,8 @@ This is a simple Items Management App built using React. The application allows 
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/items-management-app.git
-   cd items-management-app
+   git clone https://github.com/jahnvisahni31/inveesync-frontend-assignment.git
+   cd inveesync-frontend-assignment
    ```
 
 2. Install dependencies:

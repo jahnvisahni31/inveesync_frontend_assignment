@@ -1,52 +1,40 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import axios from 'axios'; // Import axios
+import axios from 'axios';
 
 const ItemsPage = () => {
   const [items, setItems] = useState([]);
   const [errors, setErrors] = useState([]);
   const [validationMessage, setValidationMessage] = useState('');
   const [newItem, setNewItem] = useState({
+    id: '',
     internal_item_name: '',
     type: 'Sell',
-    uom: 'Nos',
-    additional_attributes__scrap_type: '',
+    uom: 'kgs', // Default value
+    additional_attributes__avg_weight_needed: 'TRUE', // Default value
     min_buffer: '',
     max_buffer: '',
   });
-  const [editingIndex, setEditingIndex] = useState(null); // Track the item being edited
+  const [editingIndex, setEditingIndex] = useState(null);
+  const [csvData, setCsvData] = useState([]);
+  
+  const apiUrl = 'https://api-assignment.inveesync.in/items';
 
-  const apiUrl = 'https://api-assignment.inveesync.in/items'; // API URL
-
-  // Fetch data from API when component mounts
+  // Fetch items from API
   useEffect(() => {
-    axios.get(apiUrl)
-      .then((response) => setItems(response.data))
+    axios
+      .get(apiUrl)
+      .then((response) => {
+        const apiItems = response.data.map((item) => ({
+          ...item,
+          additional_attributes__avg_weight_needed: item.additional_attributes.avg_weight_needed,
+        }));
+        setItems(apiItems);
+      })
       .catch((error) => console.error('Error fetching items:', error));
   }, []);
 
-  // Handle CSV Upload
-  const handleCSVUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      Papa.parse(file, {
-        header: true,
-        skipEmptyLines: true,
-        complete: (result) => {
-          const parsedItems = result.data;
-          parsedItems.forEach((item) => {
-            axios.post(apiUrl, item)
-              .then((response) => {
-                setItems((prevItems) => [...prevItems, response.data]);
-              })
-              .catch((error) => console.error('Error adding item to API:', error));
-          });
-        },
-      });
-    }
-  };
-
-  // Handle Form Input Changes
+  // Handle Input Changes
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setNewItem({ ...newItem, [name]: value });
@@ -54,10 +42,18 @@ const ItemsPage = () => {
 
   // Add or Edit Item
   const handleAddItem = () => {
+    const itemToSubmit = {
+      ...newItem,
+      id: newItem.id || Math.random().toString(36).substring(2, 9),
+      additional_attributes: {
+        avg_weight_needed: newItem.additional_attributes__avg_weight_needed,
+      },
+    };
+
     if (editingIndex !== null) {
-      // Edit existing item
-      const updatedItem = { ...newItem };
-      axios.put(`${apiUrl}/${items[editingIndex]._id}`, updatedItem)
+      const updatedItem = { ...itemToSubmit };
+      axios
+        .put(`${apiUrl}/${items[editingIndex].id}`, updatedItem)
         .then((response) => {
           const updatedItems = items.map((item, index) =>
             index === editingIndex ? response.data : item
@@ -67,29 +63,52 @@ const ItemsPage = () => {
         })
         .catch((error) => console.error('Error updating item:', error));
     } else {
-      // Add new item
-      axios.post(apiUrl, newItem)
+      axios
+        .post(apiUrl, itemToSubmit)
         .then((response) => {
           setItems([...items, response.data]);
         })
         .catch((error) => console.error('Error adding item:', error));
     }
 
-    // Reset the form
+    // Reset form
     setNewItem({
+      id: '',
       internal_item_name: '',
       type: 'Sell',
-      uom: 'Nos',
-      additional_attributes__scrap_type: '',
+      uom: 'kgs',
+      additional_attributes__avg_weight_needed: 'TRUE',
       min_buffer: '',
       max_buffer: '',
     });
   };
 
-  // Validate Data
+  // Handle Delete Item
+  const handleDeleteItem = (index) => {
+    const itemToDelete = items[index];
+    axios
+      .delete(`${apiUrl}/${itemToDelete.id}`)
+      .then(() => {
+        setItems(items.filter((_, i) => i !== index));
+      })
+      .catch((error) => console.error('Error deleting item:', error));
+  };
+
+  // Handle Edit Item
+  const handleEditItem = (index) => {
+    const itemToEdit = items[index];
+    setNewItem({
+      ...itemToEdit,
+      additional_attributes__avg_weight_needed: itemToEdit.additional_attributes.avg_weight_needed,
+    });
+    setEditingIndex(index);
+  };
+
+  // Validate Items
   const handleValidate = () => {
     const newErrors = [];
     const uniqueCombination = new Set();
+
     items.forEach((item, index) => {
       const key = `${item.internal_item_name}-${item.tenant_id}`;
       if (uniqueCombination.has(key)) {
@@ -98,12 +117,8 @@ const ItemsPage = () => {
         uniqueCombination.add(key);
       }
 
-      if (item.type.toLowerCase() === 'sell' && (!item.additional_attributes__scrap_type || item.additional_attributes__scrap_type.trim() === '')) {
-        newErrors.push(`Row ${index + 1}: Scrap Type is required for items with type "Sell".`);
-      }
-
-      if ((item.type.toLowerCase() === 'sell' || item.type.toLowerCase() === 'purchase') && (!item.min_buffer || item.min_buffer.trim() === '')) {
-        newErrors.push(`Row ${index + 1}: Min Buffer is required for "Sell" and "Purchase" items.`);
+      if (item.type.toLowerCase() === 'sell' && (!item.additional_attributes__avg_weight_needed || item.additional_attributes__avg_weight_needed.trim() === '')) {
+        newErrors.push(`Row ${index + 1}: Avg Weight Needed is required for items with type "Sell".`);
       }
 
       const minBuffer = parseFloat(item.min_buffer) || 0;
@@ -117,55 +132,39 @@ const ItemsPage = () => {
     setValidationMessage(newErrors.length === 0 ? 'Validation Successful' : 'Validation Failed');
   };
 
-  // Handle Delete Item
-  const handleDeleteItem = (index) => {
-    const itemToDelete = items[index];
-    axios.delete(`${apiUrl}/${itemToDelete._id}`)
-      .then(() => {
-        const updatedItems = items.filter((_, i) => i !== index);
-        setItems(updatedItems);
-      })
-      .catch((error) => console.error('Error deleting item:', error));
-  };
+  // Handle CSV File Upload
+  const handleFileUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === 'text/csv') {
+      Papa.parse(file, {
+        complete: (result) => {
+          // Assuming the CSV has headers that match your item structure
+          const uploadedItems = result.data.map((row) => ({
+            internal_item_name: row['Internal Item Name'],
+            type: row['Type'] || 'Sell',
+            uom: row['Unit of Measurement'] || 'kgs',
+            additional_attributes__avg_weight_needed: row['Avg Weight Needed'] || 'TRUE',
+            min_buffer: row['Min Buffer'],
+            max_buffer: row['Max Buffer'],
+          }));
 
-  // Handle Edit Item
-  const handleEditItem = (index) => {
-    const itemToEdit = items[index];
-    setNewItem({ ...itemToEdit });
-    setEditingIndex(index);
-  };
-
-  // Download Template CSV
-  const handleDownloadTemplate = () => {
-    const template = 'internal_item_name,type,uom,additional_attributes__scrap_type,min_buffer,max_buffer\nSample Item,Sell,Nos,Scrap A,10,20';
-    const blob = new Blob([template], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.setAttribute('download', 'template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+          // Add the items from CSV to current items list
+          setCsvData(uploadedItems);
+        },
+        header: true, // Assumes the first row of the CSV contains headers
+        skipEmptyLines: true,
+      });
+    } else {
+      alert('Please upload a valid CSV file');
+    }
   };
 
   return (
     <div style={{ padding: '20px', backgroundColor: '#000', color: '#fff' }}>
       <h1 style={{ textAlign: 'center' }}>Items Management</h1>
 
-      {/* CSV Upload Button */}
-      <input
-        type="file"
-        accept=".csv"
-        onChange={handleCSVUpload}
-        style={{ display: 'block', margin: '10px auto', color: '#fff' }}
-      />
-
-      {/* Download Template Button */}
-      <button onClick={handleDownloadTemplate} style={buttonStyle}>
-        Download Template
-      </button>
-
-      {/* Add or Edit Item Form */}
-      <div style={{ marginTop: '20px' }}>
+      {/* Add/Edit Item Form */}
+      <div>
         <h3>{editingIndex !== null ? 'Edit Item' : 'Add New Item'}</h3>
         <input
           type="text"
@@ -180,14 +179,19 @@ const ItemsPage = () => {
           <option value="Purchase">Purchase</option>
           <option value="Component">Component</option>
         </select>
-        <input
-          type="text"
-          name="additional_attributes__scrap_type"
-          placeholder="Scrap Type"
-          value={newItem.additional_attributes__scrap_type}
+        <select name="uom" value={newItem.uom} onChange={handleInputChange} style={dropdownStyle}>
+          <option value="kgs">kgs</option>
+          <option value="nos">nos</option>
+        </select>
+        <select
+          name="additional_attributes__avg_weight_needed"
+          value={newItem.additional_attributes__avg_weight_needed}
           onChange={handleInputChange}
-          style={inputStyle}
-        />
+          style={dropdownStyle}
+        >
+          <option value="TRUE">TRUE</option>
+          <option value="FALSE">FALSE</option>
+        </select>
         <input
           type="number"
           name="min_buffer"
@@ -207,28 +211,23 @@ const ItemsPage = () => {
         <button onClick={handleAddItem} style={buttonStyle}>
           {editingIndex !== null ? 'Update Item' : 'Save Item'}
         </button>
-        <button onClick={handleValidate} style={buttonStyle}>
-          Validate
-        </button>
+        <button onClick={handleValidate} style={buttonStyle}>Validate</button>
+      </div>
+
+      {/* CSV File Upload */}
+      <div>
+        <input type="file" accept=".csv" onChange={handleFileUpload} style={inputStyle} />
+        <button onClick={handleValidate} style={buttonStyle}>Validate CSV Data</button>
       </div>
 
       {/* Validation Message */}
-      {validationMessage && (
-        <div style={{ marginTop: '20px', color: validationMessage === 'Validation Successful' ? 'green' : 'red' }}>
-          <strong>{validationMessage}</strong>
-        </div>
-      )}
+      {validationMessage && <strong>{validationMessage}</strong>}
 
-      {/* Error Display */}
+      {/* Errors */}
       {errors.length > 0 && (
-        <div style={{ color: 'red', marginTop: '20px' }}>
-          <h4>Validation Errors:</h4>
-          <ul>
-            {errors.map((error, index) => (
-              <li key={index}>{error}</li>
-            ))}
-          </ul>
-        </div>
+        <ul>
+          {errors.map((error, index) => <li key={index} style={{ color: 'red' }}>{error}</li>)}
+        </ul>
       )}
 
       {/* Items Table */}
@@ -238,19 +237,19 @@ const ItemsPage = () => {
             <th>Internal Item Name</th>
             <th>Type</th>
             <th>Unit of Measurement</th>
-            <th>Scrap Type</th>
+            <th>Avg Weight Needed</th>
             <th>Min Buffer</th>
             <th>Max Buffer</th>
-            <th>Actions</th> {/* Added Actions column for edit and delete */}
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          {items.map((item, index) => (
-            <tr key={index}>
+          {[...items, ...csvData].map((item, index) => (
+            <tr key={item.id}>
               <td>{item.internal_item_name}</td>
               <td>{item.type}</td>
               <td>{item.uom}</td>
-              <td>{item.additional_attributes__scrap_type}</td>
+              <td>{item.additional_attributes__avg_weight_needed}</td>
               <td>{item.min_buffer}</td>
               <td>{item.max_buffer}</td>
               <td>
@@ -265,23 +264,38 @@ const ItemsPage = () => {
   );
 };
 
-// Styles
-const inputStyle = { padding: '10px', margin: '10px', borderRadius: '5px', width: '200px' };
-const dropdownStyle = { padding: '10px', margin: '10px', borderRadius: '5px', width: '220px' };
 const buttonStyle = {
-  backgroundColor: '#4CAF50',
-  color: 'white',
-  padding: '10px 15px',
+  padding: '10px 20px',
   margin: '10px',
+  backgroundColor: '#007bff',
+  color: '#fff',
   border: 'none',
   borderRadius: '5px',
   cursor: 'pointer',
 };
+
+const inputStyle = {
+  margin: '5px',
+  padding: '10px',
+  border: '1px solid #ccc',
+  borderRadius: '5px',
+  backgroundColor: 'white', 
+  color: '#000',
+};
+
+const dropdownStyle = {
+  margin: '5px',
+  padding: '10px',
+  border: '1px solid #ccc',
+  borderRadius: '5px',
+  backgroundColor: 'white', 
+  color: '#000',
+};
+
 const tableStyle = {
   width: '100%',
-  marginTop: '20px',
   borderCollapse: 'collapse',
+  margin: '20px 0',
 };
-const thStyle = { padding: '10px', backgroundColor: '#333', color: 'white' };
 
 export default ItemsPage;

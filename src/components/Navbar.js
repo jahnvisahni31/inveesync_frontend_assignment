@@ -24,6 +24,7 @@ const Navbar = () => {
             fontSize: '1.2em',
             fontWeight: 'bold',
             position: 'relative',
+            display: 'inline-block',
           }}>
             Home
             <span style={{
@@ -46,6 +47,7 @@ const Navbar = () => {
             fontSize: '1.2em',
             fontWeight: 'bold',
             position: 'relative',
+            display: 'inline-block',
           }}>
             BoM
             <span style={{
@@ -68,8 +70,32 @@ const Navbar = () => {
             fontSize: '1.2em',
             fontWeight: 'bold',
             position: 'relative',
+            display: 'inline-block',
           }}>
             Items
+            <span style={{
+              position: 'absolute',
+              bottom: '-5px',
+              left: '0',
+              width: '0',
+              height: '2px',
+              backgroundColor: '#fff',
+              transition: 'width 0.3s',
+            }} className="underline"></span>
+          </span>
+        </Link>
+
+        {/* Dashboard Link */}
+        <Link href="/dashboard" passHref>
+          <span style={{
+            color: '#fff',
+            textDecoration: 'none',
+            fontSize: '1.2em',
+            fontWeight: 'bold',
+            position: 'relative',
+            display: 'inline-block',
+          }}>
+            Dashboard
             <span style={{
               position: 'absolute',
               bottom: '-5px',
@@ -89,7 +115,7 @@ const Navbar = () => {
           width: 0;
           transition: width 0.3s;
         }
-        a:hover .underline {
+        span:hover .underline {
           width: 100%;
         }
       `}</style>
